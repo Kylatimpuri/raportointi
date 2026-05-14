@@ -30,9 +30,13 @@ export default async function TavoitteetPage() {
   const MONTHS_AHEAD = 6;
 
   const rows = await sql`
-    SELECT to_char(period, 'YYYY-MM') AS period, first_meetings, deals
+    SELECT
+      to_char(date_trunc('month', period), 'YYYY-MM') AS period,
+      SUM(first_meetings)::int AS first_meetings,
+      SUM(deals)::int          AS deals
     FROM sales_entries
-    ORDER BY period ASC
+    GROUP BY date_trunc('month', period)
+    ORDER BY date_trunc('month', period) ASC
   `;
 
   const LAG = 1;

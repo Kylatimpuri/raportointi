@@ -12,14 +12,14 @@ export default async function DashboardPage() {
 
   const rows = await sql`
     SELECT
-      to_char(period, 'YYYY-MM') AS period,
+      to_char(date_trunc('month', period), 'YYYY-MM') AS period,
       SUM(leads)::int          AS leads,
       SUM(first_meetings)::int AS first_meetings,
       SUM(all_meetings)::int   AS all_meetings,
       SUM(deals)::int          AS deals
     FROM sales_entries
-    GROUP BY period
-    ORDER BY period ASC
+    GROUP BY date_trunc('month', period)
+    ORDER BY date_trunc('month', period) ASC
   `;
 
   const data = rows as unknown as {

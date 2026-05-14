@@ -4,11 +4,31 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-const CURRENT_PERIOD = new Date().toISOString().slice(0, 7);
+function currentIsoWeek(): string {
+  const now = new Date();
+  const day = now.getDay() || 7;
+  const thursday = new Date(now);
+  thursday.setDate(now.getDate() - day + 4);
+  const yearStart = new Date(thursday.getFullYear(), 0, 1);
+  const weekNum = Math.ceil(((thursday.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return `${thursday.getFullYear()}-W${String(weekNum).padStart(2, "0")}`;
+}
+
+function isoWeekToMonday(week: string): string {
+  const [year, w] = week.split("-W");
+  const yearNum = parseInt(year);
+  const weekNum = parseInt(w);
+  const jan4 = new Date(yearNum, 0, 4);
+  const week1Monday = new Date(jan4);
+  week1Monday.setDate(jan4.getDate() - ((jan4.getDay() || 7) - 1));
+  const monday = new Date(week1Monday);
+  monday.setDate(week1Monday.getDate() + (weekNum - 1) * 7);
+  return monday.toISOString().slice(0, 10);
+}
 
 export default function SyotaPage() {
   const router = useRouter();
-  const [period, setPeriod] = useState(CURRENT_PERIOD);
+  const [week, setWeek] = useState(currentIsoWeek());
   const [leads, setLeads] = useState("");
   const [firstMeetings, setFirstMeetings] = useState("");
   const [allMeetings, setAllMeetings] = useState("");
@@ -25,7 +45,7 @@ export default function SyotaPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        period: `${period}-01`,
+        period: isoWeekToMonday(week),
         leads: parseInt(leads) || 0,
         first_meetings: parseInt(firstMeetings) || 0,
         all_meetings: parseInt(allMeetings) || 0,
@@ -51,11 +71,11 @@ export default function SyotaPage() {
         <Link href="/dashboard" className="text-sm text-sage hover:text-navy transition-colors">← Takaisin</Link>
       </header>
       <main className="max-w-lg mx-auto px-6 py-10">
-        <h1 className="text-xl font-bold text-navy mb-6">Syötä kuukausiluvut</h1>
+        <h1 className="text-xl font-bold text-navy mb-6">Syötä viikkoluvut</h1>
         <form onSubmit={handleSubmit} className="bg-white border border-mist p-6 flex flex-col gap-4">
           <div>
-            <label className="block text-xs font-medium text-sage uppercase tracking-wider mb-1">Kuukausi</label>
-            <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} required
+            <label className="block text-xs font-medium text-sage uppercase tracking-wider mb-1">Viikko</label>
+            <input type="week" value={week} onChange={(e) => setWeek(e.target.value)} required
               className="w-full border border-mist px-3 py-2 text-sm text-navy focus:outline-none focus:ring-1 focus:ring-navy" />
           </div>
           {fields.map((f) => (
