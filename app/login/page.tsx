@@ -25,24 +25,24 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Raportointi</h1>
-        <p className="text-sm text-gray-500 mb-8">Kirjaudu sisään</p>
+    <div className="min-h-screen flex items-center justify-center bg-cream">
+      <div className="w-full max-w-sm bg-white border border-mist p-8">
+        <h1 className="text-2xl font-bold text-navy mb-1">Kylätimpuri</h1>
+        <p className="text-sm text-sage mb-8">Myyntianalytiikka — kirjaudu sisään</p>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Sähköposti</label>
+            <label className="block text-xs font-medium text-sage uppercase tracking-wider mb-1">Sähköposti</label>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full border border-mist px-3 py-2 text-sm text-navy focus:outline-none focus:ring-1 focus:ring-navy" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Salasana</label>
+            <label className="block text-xs font-medium text-sage uppercase tracking-wider mb-1">Salasana</label>
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full border border-mist px-3 py-2 text-sm text-navy focus:outline-none focus:ring-1 focus:ring-navy" />
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-[#9c3a3a]">{error}</p>}
           <button type="submit" disabled={loading}
-            className="w-full rounded-lg bg-blue-600 text-white py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
+            className="w-full bg-navy text-white py-2.5 text-sm font-medium hover:bg-[#1a1f2e] disabled:opacity-50 transition-colors">
             {loading ? "Kirjaudutaan..." : "Kirjaudu sisään"}
           </button>
         </form>
