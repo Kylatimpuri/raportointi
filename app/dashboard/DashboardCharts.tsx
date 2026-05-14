@@ -4,7 +4,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, ReferenceLine,
 } from "recharts";
-import { linearForecast, periodLabel } from "@/lib/forecast";
+import { periodLabel } from "@/lib/forecast";
 
 type Row = { period: string; leads: number; first_meetings: number; all_meetings: number; deals: number };
 
@@ -15,34 +15,67 @@ const METRICS = [
   { key: "deals",          label: "Kaupat",              color: "#10b981" },
 ] as const;
 
+function linearRegression(xs: number[], ys: number[]) {
+  const n = xs.length;
+  const meanX = xs.reduce((a, b) => a + b, 0) / n;
+  const meanY = ys.reduce((a, b) => a + b, 0) / n;
+  const slope = xs.reduce((s, x, i) => s + (x - meanX) * (ys[i] - meanY), 0) /
+                xs.reduce((s, x) => s + (x - meanX) ** 2, 0);
+  const intercept = meanY - slope * meanX;
+  return { slope, intercept, predict: (x: number) => Math.max(0, slope * x + intercept) };
+}
+
+function nextPeriod(period: string, months: number): string {
+  const d = new Date(period + "-01");
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().slice(0, 7);
+}
+
 export function DashboardCharts({ data }: { data: Row[] }) {
-  const FORECAST_MONTHS = 6;
-  const forecastStart = data.length > 0 ? data[data.length - 1].period : null;
+  const chartData = data.map((d) => ({ ...d, label: periodLabel(d.period) }));
 
-  // Build combined chart data with forecasts
-  const forecasts = METRICS.reduce((acc, m) => {
-    const points = data.map((d) => ({ period: d.period, value: d[m.key] }));
-    acc[m.key] = linearForecast(points, FORECAST_MONTHS);
-    return acc;
-  }, {} as Record<string, { period: string; value: number }[]>);
-
-  const forecastPeriods = forecasts.leads.map((f) => f.period);
-  const allPeriods = [...data.map((d) => d.period), ...forecastPeriods];
-
-  const chartData = allPeriods.map((period) => {
-    const actual = data.find((d) => d.period === period);
-    const row: Record<string, number | string | null> = { period, label: periodLabel(period) };
-    for (const m of METRICS) {
-      row[m.key] = actual ? actual[m.key] : null;
-      const fc = forecasts[m.key].find((f) => f.period === period);
-      row[`${m.key}_forecast`] = fc ? fc.value : null;
-    }
-    return row;
-  });
-
-  // Summary cards
   const last = data[data.length - 1];
   const prev = data[data.length - 2];
+
+  // Kauppaennuste: deals(t) ~ first_meetings(t-1), 1 kk viive
+  const LAG = 1;
+  const regressionData = data.slice(LAG).map((d, i) => ({
+    meetings: data[i].first_meetings,
+    deals: d.deals,
+  }));
+  const model = linearRegression(
+    regressionData.map(d => d.meetings),
+    regressionData.map(d => d.deals)
+  );
+
+  // Historialliset pisteet + sovite
+  const forecastChartData = data.map((d, i) => {
+    const prevRow = data[i - LAG];
+    return {
+      label: periodLabel(d.period),
+      period: d.period,
+      actual: d.deals,
+      fitted: prevRow ? Math.round(model.predict(prevRow.first_meetings) * 10) / 10 : null,
+      forecast: null as number | null,
+    };
+  });
+
+  // Ennuste 3 kk eteenpäin, käyttäen viimeisen 3 kk keskiarvoa tulevina ykköstapaamisina
+  const recentMeetingsAvg = Math.round(
+    data.slice(-3).reduce((s, d) => s + d.first_meetings, 0) / 3
+  );
+  const lastPeriod = data[data.length - 1].period;
+  for (let i = 1; i <= 3; i++) {
+    forecastChartData.push({
+      label: periodLabel(nextPeriod(lastPeriod, i)),
+      period: nextPeriod(lastPeriod, i),
+      actual: null as unknown as number,
+      fitted: null,
+      forecast: Math.round(model.predict(recentMeetingsAvg) * 10) / 10,
+    });
+  }
+
+  const forecastStartLabel = periodLabel(nextPeriod(lastPeriod, 1));
 
   return (
     <div>
@@ -66,22 +99,42 @@ export function DashboardCharts({ data }: { data: Row[] }) {
         })}
       </div>
 
-      {/* Charts */}
+      {/* Kauppaennuste */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+        <div className="flex items-start justify-between mb-1">
+          <h2 className="text-sm font-semibold text-gray-700">Kauppaennuste — perustuu ykköstapaamisiin (1 kk viive)</h2>
+          <span className="text-xs text-gray-400">Ennuste käyttää viim. 3 kk tapaamiskeskiarvoa: {recentMeetingsAvg} kpl/kk</span>
+        </div>
+        <p className="text-xs text-gray-400 mb-4">
+          Malli: kaupat = {model.slope.toFixed(2)} × ykköstapaamiset + {model.intercept.toFixed(2)}
+        </p>
+        <ResponsiveContainer width="100%" height={260}>
+          <LineChart data={forecastChartData} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+            <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={30} />
+            <Tooltip />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <ReferenceLine x={forecastStartLabel} stroke="#d1d5db" strokeDasharray="4 4" />
+            <Line type="monotone" dataKey="actual" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} name="Toteutuneet kaupat" connectNulls={false} />
+            <Line type="monotone" dataKey="fitted" stroke="#6366f1" strokeWidth={2} strokeDasharray="4 4" dot={false} name="Mallin sovite" connectNulls={false} />
+            <Line type="monotone" dataKey="forecast" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 4 }} name="Ennuste (3 kk)" connectNulls />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Historiagraafid */}
       <div className="flex flex-col gap-6">
         {METRICS.map((m) => (
           <div key={m.key} className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-sm font-semibold text-gray-700 mb-4">{m.label} — historia & ennuste (6 kk)</h2>
+            <h2 className="text-sm font-semibold text-gray-700 mb-4">{m.label}</h2>
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
                 <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={30} />
                 <Tooltip />
-                {forecastStart && (
-                  <ReferenceLine x={periodLabel(forecastStart)} stroke="#d1d5db" strokeDasharray="4 4" label={{ value: "Ennuste →", fontSize: 10, fill: "#9ca3af" }} />
-                )}
-                <Line type="monotone" dataKey={m.key} stroke={m.color} strokeWidth={2} dot={{ r: 3 }} name={m.label} connectNulls={false} />
-                <Line type="monotone" dataKey={`${m.key}_forecast`} stroke={m.color} strokeWidth={2} strokeDasharray="5 5" dot={false} name={`${m.label} (ennuste)`} connectNulls />
+                <Line type="monotone" dataKey={m.key} stroke={m.color} strokeWidth={2} dot={{ r: 3 }} name={m.label} />
               </LineChart>
             </ResponsiveContainer>
           </div>
